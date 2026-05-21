@@ -31,7 +31,7 @@ type Birc struct {
 	Local                                     chan config.Message // local queue for flood control
 	FirstConnection, authDone                 bool
 	MessageDelay, MessageQueue, MessageLength int
-	channels                                  map[string]bool
+	channels                                  chan config.ChannelInfo
 
 	*bridge.Config
 }
@@ -42,7 +42,6 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	b.Nick = b.GetString("Nick")
 	b.names = make(map[string][]string)
 	b.connected = make(chan error)
-	b.channels = make(map[string]bool)
 
 	if b.GetInt("MessageDelay") == 0 {
 		b.MessageDelay = 1300
@@ -78,6 +77,7 @@ func (b *Birc) Connect() error {
 	}
 
 	b.Local = make(chan config.Message, b.MessageQueue+10)
+	b.channels = make(chan config.ChannelInfo, b.MessageQueue+10)
 	b.Log.Infof("Connecting %s", b.GetString("Server"))
 
 	i, err := b.getClient()
@@ -97,19 +97,21 @@ func (b *Birc) Connect() error {
 	i.Handlers.Add(girc.ERR_NOMOTD, b.handleOtherAuth)
 	i.Handlers.Add(girc.ALL_EVENTS, b.handleOther)
 	b.i = i
-
+	
+	go b.doJoin()
+	go b.doSend()
 	go b.doConnect()
 
-	err = <-b.connected
-	if err != nil {
-		return fmt.Errorf("connection failed %s", err)
-	}
-	b.Log.Info("Connection succeeded")
-	b.FirstConnection = false
-	if b.GetInt("DebugLevel") == 0 {
-		i.Handlers.Clear(girc.ALL_EVENTS)
-	}
-	go b.doSend()
+	go func() {
+		// Block until something happens...
+		<-b.connected
+
+		b.Log.Info("Connection succeeded")
+		b.FirstConnection = false
+		if b.GetInt("DebugLevel") == 0 {
+			i.Handlers.Clear(girc.ALL_EVENTS)
+		}
+	}()
 	return nil
 }
 
@@ -119,21 +121,31 @@ func (b *Birc) Disconnect() error {
 	return nil
 }
 
-func (b *Birc) JoinChannel(channel config.ChannelInfo) error {
-	b.channels[channel.Name] = true
-	// need to check if we have nickserv auth done before joining channels
-	for {
-		if b.authDone {
-			break
+func (b *Birc) doJoin() {
+	b.Log.Debugf("doJoin started")
+	rate := time.Millisecond * time.Duration(b.MessageDelay)
+	throttle := time.NewTicker(rate)
+	for channel := range b.channels {
+		b.Log.Debugf("got channel to join %s", channel.Name)
+		// need to check if we have nickserv auth done before joining channels
+		for {
+			if b.authDone {
+				break
+			}
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
+		<-throttle.C
+		if channel.Options.Key != "" {
+			b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
+			b.i.Cmd.JoinKey(channel.Name, channel.Options.Key)
+		} else {
+			b.i.Cmd.Join(channel.Name)
+		}
 	}
-	if channel.Options.Key != "" {
-		b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
-		b.i.Cmd.JoinKey(channel.Name, channel.Options.Key)
-	} else {
-		b.i.Cmd.Join(channel.Name)
-	}
+}
+
+func (b *Birc) JoinChannel(channel config.ChannelInfo) error {
+	b.channels <- channel
 	return nil
 }
 
@@ -146,10 +158,12 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 	b.Log.Debugf("=> Receiving %#v", msg)
 
 	// we can be in between reconnects #385
-	if !b.i.IsConnected() {
-		b.Log.Error("Not connected to server, dropping message")
-		return "", nil
-	}
+	// Don't make requests to the irc library in the main thread, as it might take out a lock for ages.
+	// Instead, let's check b.authDone in doSend()
+	//	if !b.i.IsConnected() {
+	//		b.Log.Error("Not connected to server, dropping message")
+	//		return "", nil
+	//	}
 
 	// Execute a command
 	if strings.HasPrefix(msg.Text, "!") {
@@ -193,8 +207,8 @@ func (b *Birc) doConnect() {
 		if err := b.i.Connect(); err != nil {
 			b.Log.Errorf("disconnect: error: %s", err)
 			if b.FirstConnection {
-				b.connected <- err
-				return
+				// try again
+				continue
 			}
 		} else {
 			b.Log.Info("disconnect: client requested quit")
@@ -225,6 +239,10 @@ func (b *Birc) doSend() {
 	rate := time.Millisecond * time.Duration(b.MessageDelay)
 	throttle := time.NewTicker(rate)
 	for msg := range b.Local {
+		if !b.authDone {
+			// If we're not logged in yet, discard the message
+			continue
+		}
 		<-throttle.C
 		username := msg.Username
 		// Optional support for the proposed RELAYMSG extension, described at
