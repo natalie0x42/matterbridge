@@ -63,11 +63,12 @@ func New(cfg *bridge.Config) bridge.Bridger {
 }
 
 func (b *Birc) Command(msg *config.Message) string {
-	if msg.Text == "!users" {
-		b.i.Handlers.Add(girc.RPL_NAMREPLY, b.storeNames)
-		b.i.Handlers.Add(girc.RPL_ENDOFNAMES, b.endNames)
-		b.i.Cmd.SendRaw("NAMES " + msg.Channel) //nolint:errcheck
-	}
+	// we don't really need people spamming with user list requests
+	//if msg.Text == "!users" {
+	//	b.i.Handlers.Add(girc.RPL_NAMREPLY, b.storeNames)
+	//	b.i.Handlers.Add(girc.RPL_ENDOFNAMES, b.endNames)
+	//	b.i.Cmd.SendRaw("NAMES " + msg.Channel) //nolint:errcheck
+	//}
 	return ""
 }
 
