@@ -23,7 +23,7 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
-- irc: Destination bridges which have `Colornicks` set, and are not using `StripNick`, when receiving from bridges that allow spaces in the nickname (e.g. Discord, XMPP), will see those spaces in the nick replaced with non-breaking spaces.  This is to facilitate using any other regular whitespace characters as delimiters for the new `Colornicks` behavior ([#214](https://github.com/matterbridge-org/matterbridge/pull/214)).
+- irc: Destination bridges which have `Colornicks` set, and are not using `StripNick`, when receiving from bridges that allow spaces in the nickname (e.g. Discord, XMPP), will see those spaces in the nick replaced with non-breaking spaces.  This is to facilitate using spaces as delimiters for the new `Colornicks` behavior
 
 ## New Features
 
@@ -32,8 +32,9 @@
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
+  - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - irc
-  - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#214](https://github.com/matterbridge-org/matterbridge/pull/214))
+  - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
@@ -51,7 +52,7 @@
   - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 - slack
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
-    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).  
+    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 
 ## Bugfixes

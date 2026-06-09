@@ -217,6 +217,7 @@ type Protocol struct {
 	UseUserName            bool       // discord, matrix, mattermost
 	UseInsecureURL         bool       // telegram
 	UserName               string     // IRC
+	UseRelayMsg            bool       // IRC
 	VerboseJoinPart        bool       // IRC
 	WebhookBindAddress     string     // mattermost, slack
 	WebhookURL             string     // mattermost, slack
@@ -359,6 +360,7 @@ func NewConfigFromString(rootLogger *logrus.Logger, input []byte) Config {
 
 func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
 	viper.SetConfigType(cfgtype)
+	viper.SetDefault("General.RemoteNickFormat", "[{PROTOCOL}] <{NICK}> ") // fixes #162
 	viper.SetEnvPrefix("matterbridge")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	viper.AutomaticEnv()
