@@ -152,13 +152,22 @@ func (gw *Gateway) SendMessage( //nolint:gocyclo,funlen
 	canonicalParentMsgID string,
 ) (string, error) {
 	msg := *rmsg
+	// Only send the avatar download event to ourselves.
+	if msg.Event == config.EventAvatarDownload {
+		if channel.ID != getChannelID(rmsg) {
+			return "", nil
+		}
+	} else {
+		// do not send to ourself for any other event
+		if channel.ID == getChannelID(rmsg) {
+			return "", nil
+		}
+	}
 
 	// Too noisy to log like other events
 	debugSendMessage := ""
 
 	switch msg.Event {
-	case config.EventAvatarDownload: // This had been moved to handlers.go, currently did nothing here?
-		return "", nil
 	case config.EventNoticeIRC: // Only send irc notices to IRC
 		if dest.Protocol != ircProtocol {
 			return "", nil
